@@ -1,0 +1,26 @@
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Git
+.git/
+.gitignore
+
+# Build output (will be built inside container)
+target/
+
+# Local config
+.env
+.env.local
+
+# Docs
+docs/
+README.md
+
+# Kiro
+.kiro/
+
+# Misc
+*.log
+.jqwik-database
