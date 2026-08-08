@@ -65,6 +65,22 @@ public class IngestTaskEntity {
      */
     private String rawObjectKey;
 
+    private String fileName;
+
+    private String mimeType;
+
+    private Long fileSize;
+
+    private String sourceMessageId;
+
+    private String externalDocumentId;
+
+    private String externalJobId;
+
+    private String errorCode;
+
+    private Boolean retryable;
+
     /**
      * MinIO Guide 处理件路径
      */

@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -129,6 +130,36 @@ public class MinioStorageClient {
         putObject(kbProperties.getMinio().getRawBucket(), objectKey, content);
         log.info("原始件已保存: bucket={}, key={}", kbProperties.getMinio().getRawBucket(), objectKey);
         return objectKey;
+    }
+
+    public String putRawFile(Long taskId, String fileName, String contentType,
+                             InputStream inputStream, long size) {
+        String safeName = sanitizeFileName(fileName);
+        if (safeName.isBlank()) {
+            safeName = "upload.bin";
+        }
+        String objectKey = "file/" + taskId + "/" + safeName;
+        try {
+            minioClient.putObject(PutObjectArgs.builder()
+                    .bucket(kbProperties.getMinio().getRawBucket())
+                    .object(objectKey)
+                    .stream(inputStream, size, -1L)
+                    .contentType(contentType != null ? contentType : "application/octet-stream")
+                    .build());
+            return objectKey;
+        } catch (Exception e) {
+            throw new ExternalServiceException("MinIO 保存文件失败", null, SERVICE_NAME, null, e);
+        }
+    }
+
+    public byte[] getRawBytes(String objectKey) {
+        try (var response = minioClient.getObject(GetObjectArgs.builder()
+                .bucket(kbProperties.getMinio().getRawBucket())
+                .object(objectKey).build())) {
+            return response.readAllBytes();
+        } catch (Exception e) {
+            throw new ExternalServiceException("MinIO 读取原始文件失败", null, SERVICE_NAME, null, e);
+        }
     }
 
     /**

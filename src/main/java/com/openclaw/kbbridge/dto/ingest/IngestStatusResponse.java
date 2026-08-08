@@ -31,6 +31,13 @@ public record IngestStatusResponse(
                 String processedGuideKey,
                 // MinIO 中 Q&A 处理件的对象键
                 String processedQaKey,
+                String fileName,
+                String mimeType,
+                Long fileSize,
+                String externalDocumentId,
+                String externalJobId,
+                String errorCode,
+                Boolean retryable,
                 // 失败时的错误信息；成功时为 null
                 String errorMessage,
                 // 创建时间
