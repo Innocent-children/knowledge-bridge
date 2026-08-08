@@ -17,6 +17,10 @@ public enum DocumentStatus {
      */
     PROCESSING,
     /**
+     * 正在向量化并写入 KBVector
+     */
+    INDEXING,
+    /**
      * 处理件已保存到 MinIO，入库完成
      */
     COMPLETED,

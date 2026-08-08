@@ -47,6 +47,8 @@ public class KbProperties {
      */
     private Ingest ingest = new Ingest();
 
+    private KbVector kbVector = new KbVector();
+
     // ── Nested config classes ──
 
     @Data
@@ -146,5 +148,16 @@ public class KbProperties {
         private long retryDelayMs = 5000;
         private long orphanTimeoutMs = 600000;
         private String contentHashAlgorithm = "SHA-256";
+        private long maxFileSizeBytes = 31457280;
+        private List<String> supportedFileExtensions = new ArrayList<>(
+                List.of("txt", "md", "csv", "json", "pdf", "docx"));
+    }
+
+    @Data
+    public static class KbVector {
+        private String baseUrl = "http://localhost:8000";
+        private String apiKey;
+        private String datasetId;
+        private long timeoutMs = 120000;
     }
 }

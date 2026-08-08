@@ -145,6 +145,13 @@ public class IngestController {
                 task.getRawObjectKey(),
                 task.getProcessedGuideKey(),
                 task.getProcessedQaKey(),
+                task.getFileName(),
+                task.getMimeType(),
+                task.getFileSize(),
+                task.getExternalDocumentId(),
+                task.getExternalJobId(),
+                task.getErrorCode(),
+                task.getRetryable(),
                 task.getErrorMessage(),
                 task.getCreatedAt(),
                 task.getUpdatedAt());

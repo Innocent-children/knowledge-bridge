@@ -40,6 +40,7 @@ public class HmacSignatureFilter extends OncePerRequestFilter {
     private static final List<String> CONSOLE_PREFIX_PATHS = List.of(
             "/api/v1/ingest/status/",
             "/api/v1/ingest/manual",
+            "/api/v1/ingest/file",
             "/api/v1/document/",
             "/api/v1/review/");
     private final SignatureValidator signatureValidator;
