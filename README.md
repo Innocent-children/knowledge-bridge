@@ -1,5 +1,13 @@
 # Knowledge Bridge
 
+## 私人笔记固定作业重写
+
+新增 `POST /api/v1/notes/rewrite`，使用独立 `NOTES_REWRITE_TOKEN` Bearer 认证，缺失时拒绝请求。输入固定的 `userId,noteId,sourceRevNo,rewriteJobId,sourceSha256,sourceMarkdown,allowedAttachmentIds`，返回相同身份及 `guideMd,qaMd` 和内容哈希。
+
+`NotesRewriteService` 复用 `MarkdownKnowledgeProcessor`，不调用 `IngestService.createTask`，不创建全局 hash 入库记录，也不自动发布。博客负责图片引用复核、保存重写作业和用户预览确认。旧共享 HMAC 凭据不能替代 notes 服务令牌。
+
+本次仅用 fake LlmClient 验证此入口，并验证相关认证过滤器；没有调用付费模型。测试使用 JDK 25，建议加 `-Djqwik.database=target/.jqwik-database` 将运行缓存留在忽略目录。原有服务功能说明如下。
+
 Knowledge Bridge 是 OpenClaw 与 RAGFlow 之间的知识编排服务。它负责把上游消息转成可检索、可审核、可追踪的知识资产，并为查询请求返回结构化证据包；同时提供一个同源部署的 Web 管理台，用于对话、入库、审核、文档治理和运行状态查看。
 
 ## 技术栈

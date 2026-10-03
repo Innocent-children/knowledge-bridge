@@ -17,6 +17,14 @@ import tools.jackson.databind.ObjectMapper;
  */
 @Configuration
 public class SecurityConfig {
+    @Bean
+    public FilterRegistrationBean<com.openclaw.kbbridge.security.NotesServiceAuthFilter> notesServiceAuthFilter(
+            @org.springframework.beans.factory.annotation.Value("${NOTES_REWRITE_TOKEN:}") String token) {
+        var registration = new FilterRegistrationBean<>(new com.openclaw.kbbridge.security.NotesServiceAuthFilter(token));
+        registration.addUrlPatterns("/api/v1/notes/*");
+        registration.setOrder(0);
+        return registration;
+    }
 
     @Bean
     public FilterRegistrationBean<RateLimitFilter> rateLimitFilterRegistration(KbProperties kbProperties,
