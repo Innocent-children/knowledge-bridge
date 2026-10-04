@@ -58,7 +58,7 @@ public class DocumentController {
             @RequestParam(required = false) String knowledgeType) {
         log.info("查询知识文档列表: page={}, size={}, status={}, knowledgeType={}", page, size, status, knowledgeType);
         Page<KnowledgeDocumentEntity> pageParam = new Page<>(page, size);
-        LambdaQueryWrapper<KnowledgeDocumentEntity> wrapper = new LambdaQueryWrapper<>();
+        LambdaQueryWrapper<KnowledgeDocumentEntity> wrapper = new LambdaQueryWrapper<KnowledgeDocumentEntity>();
         if (status != null && !status.isBlank()) {
             wrapper.eq(KnowledgeDocumentEntity::getStatus, status);
         }

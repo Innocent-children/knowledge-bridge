@@ -57,6 +57,7 @@ public class IngestRetryScheduler {
 
     private LambdaQueryWrapper<IngestTaskEntity> baseRetryableQuery() {
         return new LambdaQueryWrapper<IngestTaskEntity>()
+                .isNull(IngestTaskEntity::getOperation)
                 .and(w -> w
                         .isNotNull(IngestTaskEntity::getProcessedGuideKey)
                         .or()
@@ -69,12 +70,13 @@ public class IngestRetryScheduler {
 
         List<IngestTaskEntity> orphanedTasks = ingestTaskMapper.selectList(
                 new LambdaQueryWrapper<IngestTaskEntity>()
+                        .isNull(IngestTaskEntity::getOperation)
                         .eq(IngestTaskEntity::getStatus,
                                 DocumentStatus.PROCESSING.name())
                         .lt(IngestTaskEntity::getUpdatedAt, timeoutBefore));
 
         for (IngestTaskEntity task : orphanedTasks) {
-            if (!DocumentStatus.PROCESSING.name().equals(task.getStatus())) {
+            if (task.getOperation() != null || !DocumentStatus.PROCESSING.name().equals(task.getStatus())) {
                 continue;
             }
             task.setStatus(DocumentStatus.FAILED.name());
@@ -89,6 +91,7 @@ public class IngestRetryScheduler {
     }
 
     void retrySingleTask(IngestTaskEntity task, int maxAttempts) {
+        if (task.getOperation() != null) return;
         int currentRetry = task.getRetryCount() != null ? task.getRetryCount() : 0;
 
         if (currentRetry >= maxAttempts) {

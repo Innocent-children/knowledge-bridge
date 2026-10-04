@@ -3,6 +3,9 @@ package com.openclaw.kbbridge.controller;
 import com.openclaw.kbbridge.dto.ingest.FileIngestResponse;
 import com.openclaw.kbbridge.service.FileIngestService;
 import com.openclaw.kbbridge.config.KbProperties;
+import com.openclaw.kbbridge.unified.UnifiedKnowledgeService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,6 +19,12 @@ import org.springframework.web.multipart.MultipartFile;
 public class FileIngestController {
     private final FileIngestService service;
     private final KbProperties properties;
+    private UnifiedKnowledgeService unifiedKnowledgeService;
+    private String fileToken;
+    @Autowired(required = false)
+    public void setUnifiedKnowledgeService(UnifiedKnowledgeService service) { this.unifiedKnowledgeService = service; }
+    @Autowired
+    public void setFileToken(@Value("${FILE_INGEST_TOKEN:}") String token) { this.fileToken = token; }
 
     public FileIngestController(FileIngestService service, KbProperties properties) {
         this.service = service;
@@ -32,13 +41,16 @@ public class FileIngestController {
             @RequestParam(defaultValue = "false") boolean force,
             @RequestHeader("X-KB-File-Token") String token,
             @RequestParam MultipartFile file) {
-        if (properties.getSecurity().getSharedSecret() == null
+        String expectedToken = fileToken == null || fileToken.isBlank()
+                ? properties.getSecurity().getSharedSecret() : fileToken;
+        if (expectedToken == null || expectedToken.isBlank()
                 || !java.security.MessageDigest.isEqual(
-                properties.getSecurity().getSharedSecret().getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                expectedToken.getBytes(java.nio.charset.StandardCharsets.UTF_8),
                 token.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
             return ResponseEntity.status(401).build();
         }
-        return ResponseEntity.ok(service.ingest(requestId, userId, chatId, messageId,
-                sha256, force, file));
+        return ResponseEntity.ok(unifiedKnowledgeService != null
+                ? unifiedKnowledgeService.legacyFile(requestId, userId, chatId, messageId, sha256, force, file)
+                : service.ingest(requestId, userId, chatId, messageId, sha256, force, file));
     }
 }

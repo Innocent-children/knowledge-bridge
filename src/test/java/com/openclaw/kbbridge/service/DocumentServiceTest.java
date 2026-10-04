@@ -11,6 +11,8 @@ import com.openclaw.kbbridge.entity.KnowledgeDocumentEntity;
 import com.openclaw.kbbridge.model.enums.DocumentStatus;
 import com.openclaw.kbbridge.model.enums.ReviewStatus;
 import com.openclaw.kbbridge.repository.KnowledgeDocumentMapper;
+import com.openclaw.kbbridge.unified.UnifiedObjectStore;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -363,4 +365,37 @@ class DocumentServiceTest {
         assertEquals(DocumentStatus.COMPLETED.name(), doc.getStatus());
         verify(ragflowClient, never()).updateDocument(any(UpdateDocumentRequest.class), anyString());
     }
+
+    @Test
+    void unifiedDetailReadsFinalObjectWithTwoMegabyteLimit() {
+        var doc = new KnowledgeDocumentEntity();
+        doc.setId(9L); doc.setDocumentId("logical-doc"); doc.setReleaseId("release");
+        doc.setObjectKey("documents/logical-doc/releases/release/final.md");
+        var objects = mock(UnifiedObjectStore.class);
+        String markdown = "# Final content\n<script>never execute</script>";
+        when(knowledgeDocumentMapper.selectById(9L)).thenReturn(doc);
+        when(objects.get(doc.getObjectKey(), 2 * 1024 * 1024)).thenReturn(markdown.getBytes(StandardCharsets.UTF_8));
+        documentService.setUnifiedObjectStore(objects);
+        var detail = documentService.getDetail(9L);
+        assertEquals(doc.getDocumentId(), detail.documentId());
+        assertEquals(doc.getReleaseId(), detail.releaseId());
+        assertEquals(doc.getObjectKey(), detail.objectKey());
+        assertEquals(markdown, detail.contentPreview());
+        verify(objects).get(doc.getObjectKey(), 2 * 1024 * 1024);
+        verifyNoInteractions(ragflowClient);
+    }
+
+    @Test
+    void unavailableUnifiedObjectDoesNotPreventDocumentMetadataDetail() {
+        var doc = new KnowledgeDocumentEntity();
+        doc.setId(10L); doc.setDocumentId("logical-doc"); doc.setObjectKey("documents/logical-doc/final.md");
+        var objects = mock(UnifiedObjectStore.class);
+        when(knowledgeDocumentMapper.selectById(10L)).thenReturn(doc);
+        when(objects.get(doc.getObjectKey(), 2 * 1024 * 1024)).thenThrow(new IllegalArgumentException("Object exceeds limit"));
+        documentService.setUnifiedObjectStore(objects);
+        var detail = documentService.getDetail(10L);
+        assertEquals(10L, detail.id());
+        assertNull(detail.contentPreview());
+    }
+
 }

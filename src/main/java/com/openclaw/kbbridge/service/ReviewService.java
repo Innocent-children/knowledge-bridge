@@ -12,6 +12,8 @@ import com.openclaw.kbbridge.model.enums.DocumentStatus;
 import com.openclaw.kbbridge.model.enums.ReviewStatus;
 import com.openclaw.kbbridge.repository.IngestTaskMapper;
 import com.openclaw.kbbridge.repository.ReviewTaskMapper;
+import com.openclaw.kbbridge.unified.UnifiedKnowledgeService;
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -37,6 +39,9 @@ public class ReviewService {
     private final ReviewTaskMapper reviewTaskMapper;
     private final MinioStorageClient minioStorageClient;
     private final KbProperties kbProperties;
+    private UnifiedKnowledgeService unifiedKnowledgeService;
+    @Autowired(required = false)
+    public void setUnifiedKnowledgeService(UnifiedKnowledgeService service) { this.unifiedKnowledgeService = service; }
 
     public ReviewService(IngestTaskMapper ingestTaskMapper,
             ReviewTaskMapper reviewTaskMapper,
@@ -62,6 +67,12 @@ public class ReviewService {
         IngestTaskEntity task = findTaskOrThrow(request.taskId());
         validateCandidateStatus(task);
 
+        if (task.getOperation() != null) {
+            if (unifiedKnowledgeService == null) throw new BizException("统一文档服务不可用");
+            unifiedKnowledgeService.legacyReview(task.getId(), true);
+            createReviewRecord(request.taskId(), ReviewStatus.APPROVED, request.reviewer(), request.comment());
+            return;
+        }
         task.setReviewStatus(ReviewStatus.APPROVED.name());
         task.setStatus(DocumentStatus.COMPLETED.name());
         task.setUpdatedAt(LocalDateTime.now());
@@ -86,6 +97,12 @@ public class ReviewService {
         IngestTaskEntity task = findTaskOrThrow(request.taskId());
         validateCandidateStatus(task);
 
+        if (task.getOperation() != null) {
+            if (unifiedKnowledgeService == null) throw new BizException("统一文档服务不可用");
+            unifiedKnowledgeService.legacyReview(task.getId(), false);
+            createReviewRecord(request.taskId(), ReviewStatus.REJECTED, request.reviewer(), request.comment());
+            return;
+        }
         task.setReviewStatus(ReviewStatus.REJECTED.name());
         task.setUpdatedAt(LocalDateTime.now());
         ingestTaskMapper.updateById(task);
@@ -136,7 +153,7 @@ public class ReviewService {
             return null;
         }
 
-        String contentPreview = readContentPreview(task.getRawObjectKey());
+        String contentPreview = readContentPreview(task);
 
         return new ReviewDetailResponse(
                 task.getId(),
@@ -235,7 +252,9 @@ public class ReviewService {
                 task.getSourceType(),
                 null,
                 task.getReviewStatus(),
-                task.getCreatedAt());
+                task.getCreatedAt(),
+                task.getStatus(),
+                task.getOperation());
     }
 
     /**
@@ -245,13 +264,14 @@ public class ReviewService {
      * @param rawObjectKey MinIO 原始件路径
      * @return 内容摘要，或 null
      */
-    private String readContentPreview(String rawObjectKey) {
+    private String readContentPreview(IngestTaskEntity task) {
+        String rawObjectKey = task.getRawObjectKey();
         if (rawObjectKey == null || rawObjectKey.isBlank()) {
             return null;
         }
         try {
             String content = minioStorageClient.getObject(
-                    kbProperties.getMinio().getRawBucket(), rawObjectKey);
+                    task.getOperation() == null ? kbProperties.getMinio().getRawBucket() : "kb-content", rawObjectKey);
             if (content == null) {
                 return null;
             }

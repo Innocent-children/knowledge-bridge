@@ -20,7 +20,7 @@ import EmptyState from '../components/EmptyState'
 
 const {Title} = Typography
 
-const STATUS_OPTIONS = ['SYNCED', 'DISABLED', 'FAILED'] as const
+const STATUS_OPTIONS = ['SYNCED', 'DISABLED', 'FAILED', 'EFFECTIVE', 'PREPARING', 'INDEXING', 'WITHDRAWN', 'DELETED', 'SUPERSEDED'] as const
 
 const STATUS_STYLE: Record<string, { bg: string; border: string; color: string }> = {
     SYNCED: {bg: 'rgba(94, 194, 105, 0.08)', border: 'rgba(94, 194, 105, 0.2)', color: '#5EC269'},
@@ -87,6 +87,24 @@ function parseTags(tagsJson?: string): string[] {
     }
 }
 
+function isBlogDocument(document: KnowledgeDocument): boolean {
+    if (document.source) return document.source === 'BLOG'
+    if (!document.metadataJson) return false
+    try {
+        return JSON.parse(document.metadataJson)?.source === 'BLOG'
+    } catch {
+        return false
+    }
+}
+
+function isEnabled(document: KnowledgeDocument): boolean {
+    return document.documentId ? document.status === 'EFFECTIVE' : document.status !== 'DISABLED'
+}
+
+function isProcessing(document: KnowledgeDocument): boolean {
+    return !!document.documentId && ['QUEUED', 'PREPARING', 'INDEXING'].includes(document.status)
+}
+
 const DocumentsPage: FC = () => {
     const [documents, setDocuments] = useState<KnowledgeDocument[]>([])
     const [total, setTotal] = useState(0)
@@ -136,13 +154,16 @@ const DocumentsPage: FC = () => {
     }
 
     const handleToggleEnabled = async (record: KnowledgeDocument) => {
-        const isCurrentlyEnabled = record.status !== 'DISABLED'
+        if (isBlogDocument(record)) return
+        const isCurrentlyEnabled = isEnabled(record)
         const endpoint = isCurrentlyEnabled
             ? `/api/v1/document/${record.id}/disable`
             : `/api/v1/document/${record.id}/enable`
 
         setTogglingIds((prev) => new Set(prev).add(record.id))
-        const newStatus = isCurrentlyEnabled ? 'DISABLED' : 'SYNCED'
+        const newStatus = record.documentId
+            ? (isCurrentlyEnabled ? 'WITHDRAWN' : 'PREPARING')
+            : (isCurrentlyEnabled ? 'DISABLED' : 'SYNCED')
         setDocuments((prev) => prev.map((doc) => doc.id === record.id ? {
             ...doc,
             status: newStatus
@@ -150,6 +171,7 @@ const DocumentsPage: FC = () => {
 
         try {
             await api.post<{ message: string }>(endpoint, {})
+            if (record.documentId) await fetchDocuments(current, pageSize, statusFilter)
         } catch (err) {
             setDocuments((prev) => prev.map((doc) => doc.id === record.id ? {
                 ...doc,
@@ -206,13 +228,16 @@ const DocumentsPage: FC = () => {
         },
         {
             title: '状态', dataIndex: 'status', key: 'status', width: 110,
-            render: (status: string) => renderTag(status, STATUS_STYLE),
+            render: (status: string, record: KnowledgeDocument) => isProcessing(record)
+                ? <Tag color="processing">处理中</Tag> : renderTag(status, STATUS_STYLE),
         },
         {
-            title: '启用', key: 'enabled', width: 80,
-            render: (_: unknown, record: KnowledgeDocument) => (
+            title: '启用', key: 'enabled', width: 120,
+            render: (_: unknown, record: KnowledgeDocument) => isBlogDocument(record)
+                ? <Tag>在博客管理</Tag> : (
                 <Switch
-                    checked={record.status !== 'DISABLED'}
+                    checked={isEnabled(record)}
+                    disabled={!!record.documentId && (record.status === 'DELETED' || record.status === 'SUPERSEDED' || isProcessing(record))}
                     loading={togglingIds.has(record.id)}
                     onChange={(_, e) => {
                         e.stopPropagation();
@@ -354,6 +379,7 @@ const DocumentsPage: FC = () => {
                     <Descriptions bordered column={1} size="small">
                         <Descriptions.Item label="文档 ID">{detailDoc.id}</Descriptions.Item>
                         <Descriptions.Item label="标题">{detailDoc.title}</Descriptions.Item>
+                        {isBlogDocument(detailDoc) && <Descriptions.Item label="发布管理">在博客管理</Descriptions.Item>}
                         <Descriptions.Item
                             label="知识类型">{renderTag(detailDoc.knowledgeType, KNOWLEDGE_TYPE_STYLE)}</Descriptions.Item>
                         <Descriptions.Item label="主题">{detailDoc.topic}</Descriptions.Item>
@@ -393,6 +419,13 @@ const DocumentsPage: FC = () => {
                                         </Tag>
                                     ))}
                                 </Space>
+                            </Descriptions.Item>
+                        )}
+                        {detailDoc.contentPreview !== undefined && detailDoc.contentPreview !== null && (
+                            <Descriptions.Item label="内容预览">
+                                <pre style={{margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere'}}>
+                                    {detailDoc.contentPreview}
+                                </pre>
                             </Descriptions.Item>
                         )}
                         {detailDoc.metadataJson && (

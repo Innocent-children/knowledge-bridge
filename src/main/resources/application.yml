@@ -108,3 +108,12 @@ kb:
     timestamp-tolerance-ms: ${KB_SECURITY_TIMESTAMP_TOLERANCE_MS:300000}
     signature-algorithm: ${KB_SECURITY_SIGNATURE_ALGORITHM:HmacSHA256}
     rate-limit-per-minute: ${KB_SECURITY_RATE_LIMIT_PER_MINUTE:60}
+
+  unified:
+    bucket: ${KB_UNIFIED_BUCKET:kb-content}
+    blog-token: ${BLOG_BRIDGE_TOKEN:}
+    vector-url: ${KB_VECTOR_URL:}
+    vector-token: ${KB_BRIDGE_SERVICE_TOKEN:}
+    worker-enabled: ${KB_UNIFIED_WORKER_ENABLED:true}
+    lease-seconds: ${KB_UNIFIED_LEASE_SECONDS:180}
+    max-attempts: ${KB_UNIFIED_MAX_ATTEMPTS:8}

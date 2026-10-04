@@ -84,4 +84,24 @@ public class KnowledgeDocumentEntity {
      * 更新时间
      */
     private LocalDateTime updatedAt;
+
+    private String documentId;
+    private String releaseId;
+    private Long publishSeq;
+    private Long sourceRevNo;
+    private String contentType;
+    private String objectKey;
+    private String sha256;
+
+    /** Source is trusted metadata written by the unified service, not a separate database field. */
+    public String getSource() {
+        if (metadataJson == null || metadataJson.isBlank()) return null;
+        try {
+            var node = new tools.jackson.databind.ObjectMapper().readTree(metadataJson).get("source");
+            String value = node == null ? null : node.asString();
+            return "BLOG".equals(value) || "OPENCLAW".equals(value) ? value : null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
 }

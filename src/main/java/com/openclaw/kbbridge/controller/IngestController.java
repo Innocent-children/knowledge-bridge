@@ -7,6 +7,8 @@ import com.openclaw.kbbridge.entity.IngestTaskEntity;
 import com.openclaw.kbbridge.repository.IngestTaskMapper;
 import com.openclaw.kbbridge.service.CandidateEvalService;
 import com.openclaw.kbbridge.service.IngestService;
+import com.openclaw.kbbridge.unified.UnifiedKnowledgeService;
+import org.springframework.beans.factory.annotation.Autowired;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +34,10 @@ public class IngestController {
     private final IngestService ingestService;
     private final CandidateEvalService candidateEvalService;
     private final IngestTaskMapper ingestTaskMapper;
+    private UnifiedKnowledgeService unifiedKnowledgeService;
+
+    @Autowired(required = false)
+    public void setUnifiedKnowledgeService(UnifiedKnowledgeService service) { this.unifiedKnowledgeService = service; }
 
     /**
      * 构造入库控制器。
@@ -68,7 +74,7 @@ public class IngestController {
             @RequestParam(required = false) String reviewStatus) {
         log.info("查询入库任务列表: page={}, size={}, status={}, reviewStatus={}", page, size, status, reviewStatus);
         Page<IngestTaskEntity> pageParam = new Page<>(page, size);
-        LambdaQueryWrapper<IngestTaskEntity> wrapper = new LambdaQueryWrapper<>();
+        LambdaQueryWrapper<IngestTaskEntity> wrapper = new LambdaQueryWrapper<IngestTaskEntity>();
         if (status != null && !status.isBlank()) {
             wrapper.eq(IngestTaskEntity::getStatus, status);
         }
@@ -94,7 +100,9 @@ public class IngestController {
     public ResponseEntity<IngestResponse> ingestManual(@Valid @RequestBody IngestRequest request) {
         log.info("收到入库请求: requestId={}, userId={}, sourceType={}",
                 request.requestId(), request.userId(), request.sourceType());
-        IngestResponse response = ingestService.createTask(request);
+        IngestResponse response = unifiedKnowledgeService != null
+                ? unifiedKnowledgeService.legacyIngest(request)
+                : ingestService.createTask(request);
         return ResponseEntity.ok(response);
     }
 
@@ -132,7 +140,9 @@ public class IngestController {
     @GetMapping("/ingest/status/{taskId}")
     public ResponseEntity<IngestStatusResponse> getStatus(@PathVariable Long taskId) {
         log.info("查询入库状态: taskId={}", taskId);
-        IngestTaskEntity task = ingestService.getTask(taskId);
+        IngestTaskEntity task = unifiedKnowledgeService != null
+                ? unifiedKnowledgeService.legacyTask(taskId)
+                : ingestService.getTask(taskId);
         if (task == null) {
             log.warn("入库任务不存在: taskId={}", taskId);
             return ResponseEntity.notFound().build();

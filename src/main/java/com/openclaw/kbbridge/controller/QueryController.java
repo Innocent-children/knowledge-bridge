@@ -57,7 +57,8 @@ public class QueryController {
                 new LambdaQueryWrapper<QueryLogEntity>()
                         .eq(QueryLogEntity::getRequestId, request.requestId()));
 
-        if (existing != null && existing.getResponseJson() != null
+        // Unified queries re-check effective releases on every request, including retries.
+        if (!queryService.usesUnifiedKnowledge() && existing != null && existing.getResponseJson() != null
                 && !existing.getResponseJson().isBlank()) {
             log.info("幂等命中，返回缓存结果, requestId={}", request.requestId());
             try {

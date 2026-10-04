@@ -8,6 +8,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 
@@ -115,6 +116,18 @@ public class GlobalExceptionHandler {
                 "ExternalServiceException",
                 ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(body);
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex) {
+        int code = ex.getStatusCode().value();
+        HttpStatus status = HttpStatus.resolve(code);
+        String error = status == null ? "RequestError" : status.getReasonPhrase();
+        String message = code >= 500 ? "Service unavailable"
+                : ex.getReason() == null || ex.getReason().isBlank() ? error : ex.getReason();
+        log.warn("Request rejected with HTTP {}", code);
+        return ResponseEntity.status(ex.getStatusCode()).body(new ErrorResponse(
+                "unknown", code, error, message, Instant.now().toString()));
     }
 
     /**

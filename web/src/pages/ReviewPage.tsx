@@ -70,6 +70,10 @@ function formatDate(dateStr: string): string {
     }
 }
 
+function canReview(task: ReviewTask): boolean {
+    return task.reviewStatus === 'CANDIDATE' && (!task.operation || task.status === 'WAITING_REVIEW')
+}
+
 const ReviewPage: FC = () => {
     const [tasks, setTasks] = useState<ReviewTask[]>([])
     const [total, setTotal] = useState(0)
@@ -265,6 +269,7 @@ const ReviewPage: FC = () => {
             title: '操作', key: 'actions', width: 180, fixed: 'right',
             render: (_: unknown, record: ReviewTask) => {
                 if (record.reviewStatus !== 'CANDIDATE') return null
+                if (!canReview(record)) return <Tag color="processing">处理中</Tag>
                 return (
                     <Space>
                         <Button
@@ -400,7 +405,8 @@ const ReviewPage: FC = () => {
                     loading={loading && !error}
                     rowSelection={
                         activeTab === 'CANDIDATE'
-                            ? {selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys)}
+                            ? {selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys),
+                                getCheckboxProps: (record) => ({disabled: !canReview(record)})}
                             : undefined
                     }
                     pagination={{

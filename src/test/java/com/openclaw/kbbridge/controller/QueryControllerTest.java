@@ -235,4 +235,22 @@ class QueryControllerTest {
 
                 verify(queryService, times(1)).query(any(QueryRequest.class));
         }
+        @Test
+        void unifiedRequest_rechecksInsteadOfReturningStaleCachedEvidence() throws Exception {
+                QueryResponse cached = new QueryResponse("req", QueryRoute.KB_ONLY, false,
+                                List.of(new com.openclaw.kbbridge.dto.query.EvidenceSource("unified", "old", "withdrawn content", .9, java.util.Map.of())),
+                                List.of(), new RetrievalQuality(1, Confidence.HIGH, false, 1));
+                QueryLogEntity existing = new QueryLogEntity();
+                existing.setResponseJson(objectMapper.writeValueAsString(cached));
+                when(queryLogMapper.selectOne(any())).thenReturn(existing);
+                QueryResponse current = new QueryResponse("req", QueryRoute.KB_ONLY, false, List.of(), List.of(),
+                                new RetrievalQuality(0, Confidence.LOW, false, 0));
+                when(queryService.usesUnifiedKnowledge()).thenReturn(true);
+                when(queryService.query(any(QueryRequest.class))).thenReturn(current);
+                mockMvc.perform(post("/api/v1/query").contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"requestId\":\"req\",\"userId\":\"user\",\"question\":\"question\",\"isGroup\":false}"))
+                                .andExpect(status().isOk()).andExpect(jsonPath("$.sources").isEmpty());
+                verify(queryService).query(any(QueryRequest.class));
+        }
+
 }

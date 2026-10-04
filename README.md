@@ -1,12 +1,10 @@
 # Knowledge Bridge
 
-## 私人笔记固定作业重写
+## 单人统一知识库
 
-新增 `POST /api/v1/notes/rewrite`，使用独立 `NOTES_REWRITE_TOKEN` Bearer 认证，缺失时拒绝请求。输入固定的 `userId,noteId,sourceRevNo,rewriteJobId,sourceSha256,sourceMarkdown,allowedAttachmentIds`，返回相同身份及 `guideMd,qaMd` 和内容哈希。
+博客后端和原 OpenClaw 插件共用一个知识库，统一由 knowledge-bridge 管理发布版本并调用 KBVector。插件源码与请求合同保持原样；博客只有管理员登录，没有注册、身份绑定或用户空间。新的文件只写私有 `kb-content` 桶下 `documents/{document_id}/...`，来源 BLOG/OPENCLAW 只作为元数据。保存草稿、导入和生成预览不会自动入库。
 
-`NotesRewriteService` 复用 `MarkdownKnowledgeProcessor`，不调用 `IngestService.createTask`，不创建全局 hash 入库记录，也不自动发布。博客负责图片引用复核、保存重写作业和用户预览确认。旧共享 HMAC 凭据不能替代 notes 服务令牌。
-
-本次仅用 fake LlmClient 验证此入口，并验证相关认证过滤器；没有调用付费模型。测试使用 JDK 25，建议加 `-Djqwik.database=target/.jqwik-database` 将运行缓存留在忽略目录。原有服务功能说明如下。
+统一协议、目录、状态、部署顺序及本地验证边界见 [统一接入说明](docs/unified-knowledge.md)。以下原有说明介绍保留的路由、处理器、控制台及历史任务能力；新入口的写入、版本与重试以统一接入说明为准，历史对象不读取、移动或迁移。
 
 Knowledge Bridge 是 OpenClaw 与 RAGFlow 之间的知识编排服务。它负责把上游消息转成可检索、可审核、可追踪的知识资产，并为查询请求返回结构化证据包；同时提供一个同源部署的 Web 管理台，用于对话、入库、审核、文档治理和运行状态查看。
 
@@ -1101,7 +1099,6 @@ docker compose logs -f knowledge-bridge
 
 | 配置项 | 默认值 | 说明 |
 |---|---|---|
-| `llm-provider` | `openai` | LLM 提供商 |
 | `llm-model` | `gpt-4o` | LLM 模型 |
 | `llm-base-url` | — | LLM 服务地址 |
 | `llm-api-key` | — | LLM API Key |

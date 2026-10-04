@@ -54,7 +54,7 @@ public class HmacSignatureFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        if (NotesServiceAuthFilter.isNotesPath(request)) {
+        if (BlogServiceAuthFilter.isBlogPath(request)) {
             return true;
         }
         if (path.startsWith("/actuator")) {

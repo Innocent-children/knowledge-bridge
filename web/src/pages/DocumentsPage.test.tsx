@@ -361,4 +361,53 @@ describe('DocumentsPage - Unit Tests', () => {
             expect(screen.getByText('After Retry Doc')).toBeInTheDocument()
         })
     })
+
+    it('shows only effective unified versions as enabled and prevents toggling deleted or processing versions', async () => {
+        const states = ['EFFECTIVE', 'WITHDRAWN', 'DELETED', 'PREPARING', 'INDEXING']
+        const docs = states.map((status, index) => mockDocument({id: index + 200, documentId: `doc-${index}`, status}))
+        setupFetchMock(mockPageResult(docs))
+        await renderDocumentsPage()
+        await waitFor(() => expect(screen.getByTestId('toggle-200')).toBeInTheDocument())
+        expect(screen.getByTestId('toggle-200')).toHaveAttribute('aria-checked', 'true')
+        expect(screen.getByTestId('toggle-201')).toHaveAttribute('aria-checked', 'false')
+        expect(screen.getByTestId('toggle-201')).not.toBeDisabled()
+        for (const id of [202, 203, 204]) {
+            expect(screen.getByTestId(`toggle-${id}`)).toHaveAttribute('aria-checked', 'false')
+            expect(screen.getByTestId(`toggle-${id}`)).toBeDisabled()
+        }
+        expect(screen.getAllByText('处理中')).toHaveLength(2)
+        fireEvent.click(screen.getByTestId('toggle-201'))
+        await waitFor(() => expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+            call => String(call[0]).includes('/document/201/enable'))).toBe(true))
+    })
+
+    it('renders unified Markdown preview as text without creating HTML elements', async () => {
+        const content = '# Stored Markdown\n<script>window.injected = true</script>\n<img src="https://invalid.example/image" />'
+        const doc = mockDocument({id: 205, documentId: 'doc-preview', status: 'EFFECTIVE', contentPreview: content})
+        setupFetchMock(mockPageResult([doc]), doc)
+        await renderDocumentsPage()
+        await waitFor(() => expect(screen.getByText('Test Document')).toBeInTheDocument())
+        fireEvent.click(screen.getByText('Test Document'))
+        await waitFor(() => expect(screen.getByText((_, element) => element?.tagName === 'PRE' && element.textContent === content)).toBeInTheDocument())
+        expect(document.querySelector('script')).toBeNull()
+        expect(document.querySelector('img[src="https://invalid.example/image"]')).toBeNull()
+    })
+
+
+    it('keeps blog publications read-only while OpenClaw documents remain manageable', async () => {
+        const blog = mockDocument({id: 301, documentId: 'blog-note', source: 'BLOG', status: 'EFFECTIVE', title: 'Blog note'})
+        const openclaw = mockDocument({id: 302, documentId: 'claw-note', source: 'OPENCLAW', status: 'EFFECTIVE', title: 'OpenClaw note'})
+        setupFetchMock(mockPageResult([blog, openclaw]))
+        await renderDocumentsPage()
+        await waitFor(() => expect(screen.getByText('Blog note')).toBeInTheDocument())
+        expect(screen.getByText('在博客管理')).toBeInTheDocument()
+        expect(screen.queryByTestId('toggle-301')).toBeNull()
+        expect(screen.getByTestId('toggle-302')).toBeEnabled()
+        fireEvent.click(screen.getByTestId('toggle-302'))
+        await waitFor(() => expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+            call => String(call[0]).includes('/document/302/disable'))).toBe(true))
+        expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+            call => String(call[0]).includes('/document/301/disable'))).toBe(false)
+    })
+
 })

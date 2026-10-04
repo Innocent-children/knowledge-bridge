@@ -18,10 +18,13 @@ import tools.jackson.databind.ObjectMapper;
 @Configuration
 public class SecurityConfig {
     @Bean
-    public FilterRegistrationBean<com.openclaw.kbbridge.security.NotesServiceAuthFilter> notesServiceAuthFilter(
-            @org.springframework.beans.factory.annotation.Value("${NOTES_REWRITE_TOKEN:}") String token) {
-        var registration = new FilterRegistrationBean<>(new com.openclaw.kbbridge.security.NotesServiceAuthFilter(token));
-        registration.addUrlPatterns("/api/v1/notes/*");
+    public FilterRegistrationBean<com.openclaw.kbbridge.security.BlogServiceAuthFilter> blogServiceAuthFilter(
+            org.springframework.beans.factory.ObjectProvider<com.openclaw.kbbridge.unified.UnifiedProperties> properties,
+            ObjectMapper objectMapper) {
+        var config = properties.getIfAvailable();
+        var registration = new FilterRegistrationBean<>(new com.openclaw.kbbridge.security.BlogServiceAuthFilter(
+                config != null ? config.getBlogToken() : null, objectMapper));
+        registration.addUrlPatterns("/api/v1/blog/*");
         registration.setOrder(0);
         return registration;
     }

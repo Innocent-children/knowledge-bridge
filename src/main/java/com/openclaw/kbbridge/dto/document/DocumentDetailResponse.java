@@ -52,5 +52,23 @@ public record DocumentDetailResponse(
                 // 创建时间
                 LocalDateTime createdAt,
                 // 更新时间
-                LocalDateTime updatedAt) {
+                LocalDateTime updatedAt,
+                String documentId,
+                String releaseId,
+                String objectKey,
+                String contentPreview,
+                String source) {
+    public DocumentDetailResponse(Long id, Long taskId, String knowledgeType, String title, String topic,
+            String tagsJson, String reviewStatus, String status, String datasetName, String ragflowDocumentId,
+            String metadataJson, Integer version, LocalDateTime createdAt, LocalDateTime updatedAt,
+            String documentId, String releaseId, String objectKey, String contentPreview) {
+        this(id, taskId, knowledgeType, title, topic, tagsJson, reviewStatus, status, datasetName,
+                ragflowDocumentId, metadataJson, version, createdAt, updatedAt, documentId, releaseId, objectKey, contentPreview, null);
+    }
+    public DocumentDetailResponse(Long id, Long taskId, String knowledgeType, String title, String topic,
+            String tagsJson, String reviewStatus, String status, String datasetName, String ragflowDocumentId,
+            String metadataJson, Integer version, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this(id, taskId, knowledgeType, title, topic, tagsJson, reviewStatus, status, datasetName,
+                ragflowDocumentId, metadataJson, version, createdAt, updatedAt, null, null, null, null, null);
+    }
 }

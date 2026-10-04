@@ -178,20 +178,22 @@ class EvidencePackBuilderTest {
     void build_shouldGenerateStrictInstructions_forKbOnly() {
         QueryResponse resp = builder.build("req-12", QueryRoute.KB_ONLY, List.of(source("a", 0.9)));
 
-        assertEquals(3, resp.instructions().size());
-        assertTrue(resp.instructions().contains("只依据 sources 回答"));
+        assertTrue(resp.instructions().stream().anyMatch(text -> text.startsWith("只依据 sources 回答") && text.contains("不要使用自身知识")));
         assertTrue(resp.instructions().contains("不要编造未在 sources 中出现的事实"));
-        assertTrue(resp.instructions().contains("如 sources 不足，明确说明知识库中没有相关信息"));
+        assertTrue(resp.instructions().stream().anyMatch(text -> text.contains("如 sources 不足") && text.contains("知识库中没有相关信息")));
+        assertTrue(resp.instructions().stream().anyMatch(text -> text.contains("## 参考原文") && text.contains("逐字")));
+        assertTrue(resp.instructions().stream().anyMatch(text -> text.contains("不要改写") && text.contains("不要对原文内容做任何评论")));
     }
 
     @Test
     void build_shouldGenerateSupplementInstructions_forKbPlusLlm() {
         QueryResponse resp = builder.build("req-14", QueryRoute.KB_PLUS_LLM, List.of(source("a", 0.9)));
 
-        assertEquals(3, resp.instructions().size());
         assertTrue(resp.instructions().contains("优先依据 sources 回答"));
         assertTrue(resp.instructions().contains("不要编造未在 sources 中出现的事实"));
-        assertTrue(resp.instructions().contains("如 sources 不足，可补充通用说明但需标注为补充"));
+        assertTrue(resp.instructions().stream().anyMatch(text -> text.contains("可补充通用说明") && text.contains("明确标注") && text.contains("补充信息")));
+        assertTrue(resp.instructions().stream().anyMatch(text -> text.contains("## 参考原文") && text.contains("逐字")));
+        assertTrue(resp.instructions().stream().anyMatch(text -> text.contains("完全一致") && text.contains("不得改写或删减")));
     }
 
     @Test

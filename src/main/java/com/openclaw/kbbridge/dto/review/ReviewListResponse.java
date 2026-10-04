@@ -27,5 +27,11 @@ public record ReviewListResponse(
                 // 审核状态（ReviewStatus 枚举名）
                 String reviewStatus,
                 // 创建时间
-                LocalDateTime createdAt) {
+                LocalDateTime createdAt,
+                String status,
+                String operation) {
+    public ReviewListResponse(Long taskId, String requestId, String userId, String sourceType,
+            String contentPreview, String reviewStatus, LocalDateTime createdAt) {
+        this(taskId, requestId, userId, sourceType, contentPreview, reviewStatus, createdAt, null, null);
+    }
 }

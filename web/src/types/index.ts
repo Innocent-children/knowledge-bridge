@@ -51,6 +51,11 @@ export interface KnowledgeDocument {
     datasetName?: string
     ragflowDocumentId?: string
     metadataJson?: string
+    source?: string
+    documentId?: string
+    releaseId?: string
+    objectKey?: string
+    contentPreview?: string
     version: number
     createdAt: string
     updatedAt: string
@@ -75,6 +80,8 @@ export interface ReviewTask {
     sourceType: string
     contentPreview: string
     reviewStatus: string
+    status?: string
+    operation?: string
     createdAt: string
 }
 

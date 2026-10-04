@@ -433,4 +433,25 @@ describe('ReviewPage - Unit Tests', () => {
             expect(screen.getByText('req-after-retry')).toBeInTheDocument()
         })
     })
+
+    it('permits unified candidate review only after processing reaches WAITING_REVIEW', async () => {
+        const tasks = [
+            mockReviewTask({taskId: 201, requestId: 'processing-unified', operation: 'PUBLISH', status: 'PROCESSING'}),
+            mockReviewTask({taskId: 202, requestId: 'ready-unified', operation: 'PUBLISH', status: 'WAITING_REVIEW'}),
+            mockReviewTask({taskId: 203, requestId: 'legacy-candidate', status: 'PROCESSING'}),
+        ]
+        setupFetchMock(mockPageResult(tasks))
+        await renderReviewPage()
+        await waitFor(() => expect(screen.getByText('processing-unified')).toBeInTheDocument())
+        expect(screen.queryByTestId('approve-btn-201')).toBeNull()
+        expect(screen.queryByTestId('reject-btn-201')).toBeNull()
+        const processingRow = screen.getByText('processing-unified').closest('tr')!
+        expect(within(processingRow).getByRole('checkbox')).toBeDisabled()
+        expect(screen.getByTestId('approve-btn-202')).toBeEnabled()
+        expect(screen.getByTestId('approve-btn-203')).toBeEnabled()
+        fireEvent.click(screen.getByTestId('approve-btn-202'))
+        await waitFor(() => expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+            call => String(call[0]).includes('/review/approve') && String(call[1]?.body).includes('202'))).toBe(true))
+    })
+
 })

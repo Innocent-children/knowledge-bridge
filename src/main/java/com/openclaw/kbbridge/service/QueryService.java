@@ -1,6 +1,7 @@
 package com.openclaw.kbbridge.service;
 
 import com.openclaw.kbbridge.builder.EvidencePackBuilder;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.openclaw.kbbridge.client.RagflowClient;
 import com.openclaw.kbbridge.config.KbMetrics;
 import com.openclaw.kbbridge.config.KbProperties;
@@ -19,6 +20,8 @@ import com.openclaw.kbbridge.model.enums.QueryRoute;
 import com.openclaw.kbbridge.model.enums.QueryStatus;
 import com.openclaw.kbbridge.repository.QueryLogMapper;
 import com.openclaw.kbbridge.router.QueryRouter;
+import com.openclaw.kbbridge.unified.UnifiedKnowledgeService;
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
@@ -44,6 +47,9 @@ public class QueryService {
     private final KbProperties kbProperties;
     private final ObjectMapper objectMapper;
     private final KbMetrics kbMetrics;
+    private UnifiedKnowledgeService unifiedKnowledgeService;
+    @Autowired(required = false)
+    public void setUnifiedKnowledgeService(UnifiedKnowledgeService service) { this.unifiedKnowledgeService = service; }
 
     public QueryService(QueryRouter queryRouter,
             RagflowClient ragflowClient,
@@ -67,10 +73,18 @@ public class QueryService {
      * @param request 查询请求
      * @return 结构化的查询响应（证据包）
      */
+    public boolean usesUnifiedKnowledge() { return unifiedKnowledgeService != null; }
+
     public QueryResponse query(QueryRequest request) {
         // 1. 记录查询日志（状态 QUERY_RECEIVED）
         QueryLogEntity logEntity = createQueryLog(request);
-        queryLogMapper.insert(logEntity);
+        if (unifiedKnowledgeService != null) {
+            QueryLogEntity existing = queryLogMapper.selectOne(new LambdaQueryWrapper<QueryLogEntity>()
+                    .eq(QueryLogEntity::getRequestId, logEntity.getRequestId()));
+            if (existing != null) logEntity.setId(existing.getId());
+        }
+        if (logEntity.getId() == null) queryLogMapper.insert(logEntity);
+        else queryLogMapper.updateById(logEntity);
 
         try {
             // 2. 路由判定
@@ -86,16 +100,28 @@ public class QueryService {
                 return response;
             }
 
-            // 4. 调用 RAGFlow 检索
-            long startTime = System.currentTimeMillis();
-            RetrievalResponse retrievalResponse = ragflowClient.retrieval(
-                    buildRetrievalRequest(request), request.requestId());
-            long latencyMs = System.currentTimeMillis() - startTime;
-            logEntity.setRagflowLatencyMs((int) latencyMs);
-            kbMetrics.recordRagflowLatency(latencyMs);
-
-            // 5. 转换并去重（按 content 去重）
-            List<EvidenceSource> sources = convertAndDedup(retrievalResponse);
+            // Unified retrieval filters the current effective release in the administrator knowledge base.
+            List<EvidenceSource> sources = new ArrayList<>();
+            if (unifiedKnowledgeService != null) {
+                sources.addAll(unifiedKnowledgeService.legacyQuery(request.question(),
+                        kbProperties.getQuery().getMaxSources()));
+            }
+            // Historical RAGFlow access requires an explicit dataset allowlist.
+            List<String> legacyDatasets = legacyDatasetIds();
+            if (unifiedKnowledgeService == null || !legacyDatasets.isEmpty()) {
+                long startTime = System.currentTimeMillis();
+                RetrievalResponse retrievalResponse = ragflowClient.retrieval(
+                        buildRetrievalRequest(request), request.requestId());
+                long latencyMs = System.currentTimeMillis() - startTime;
+                logEntity.setRagflowLatencyMs((int) latencyMs);
+                kbMetrics.recordRagflowLatency(latencyMs);
+                List<EvidenceSource> legacySources = convertAndDedup(retrievalResponse);
+                if (unifiedKnowledgeService != null) {
+                    legacySources = legacySources.stream().filter(source -> legacyDatasets.contains(source.dataset())).toList();
+                }
+                sources.addAll(legacySources);
+            }
+            sources = dedup(sources);
 
             // 5.1 Memory 检索集成（KB_ONLY / KB_PLUS_LLM 路由时生效）
             if (kbProperties.getQuery().isMemoryEnabled()
@@ -191,14 +217,7 @@ public class QueryService {
     private RetrievalRequest buildRetrievalRequest(QueryRequest request) {
         KbProperties.Query queryConfig = kbProperties.getQuery();
 
-        // 数据集选择
-        List<String> datasetIds = queryConfig.getDatasetIds();
-        if (datasetIds == null || datasetIds.isEmpty()) {
-            String defaultDatasetId = kbProperties.getRagflow().getDatasetId();
-            datasetIds = (defaultDatasetId != null && !defaultDatasetId.isBlank())
-                    ? List.of(defaultDatasetId)
-                    : List.of();
-        }
+        List<String> datasetIds = legacyDatasetIds();
 
         // metadata 过滤条件
         Map<String, Object> metadataCondition = null;
@@ -212,6 +231,17 @@ public class QueryService {
                 queryConfig.getMaxSources(),
                 queryConfig.getScoreThreshold(),
                 metadataCondition);
+    }
+
+    private List<String> legacyDatasetIds() {
+        List<String> configured = kbProperties.getQuery().getDatasetIds();
+        if (configured == null || configured.isEmpty()) {
+            String fallback = kbProperties.getRagflow().getDatasetId();
+            configured = fallback == null || fallback.isBlank() ? List.of() : List.of(fallback);
+        }
+        return configured.stream().filter(Objects::nonNull).map(String::trim)
+                .filter(id -> !id.isBlank())
+                .distinct().toList();
     }
 
     /**
@@ -250,10 +280,12 @@ public class QueryService {
     List<EvidenceSource> searchMemory(QueryRequest request) {
         try {
             long memStart = System.currentTimeMillis();
-            MemorySearchRequest memoryRequest = new MemorySearchRequest(
-                    request.question(), null);
-            MemorySearchResponse memoryResponse = ragflowClient.searchMemory(
-                    memoryRequest, request.requestId());
+            List<String> allowedDatasets = legacyDatasetIds();
+            if (unifiedKnowledgeService != null && allowedDatasets.isEmpty()) return List.of();
+            // Memory is restricted to the explicitly configured historical dataset.
+            String datasetId = allowedDatasets.isEmpty() ? null : allowedDatasets.getFirst();
+            MemorySearchRequest memoryRequest = new MemorySearchRequest(request.question(), datasetId);
+            MemorySearchResponse memoryResponse = ragflowClient.searchMemory(memoryRequest, request.requestId());
             long memLatencyMs = System.currentTimeMillis() - memStart;
 
             if (memoryResponse == null || memoryResponse.chunks() == null

@@ -10,6 +10,10 @@ import com.openclaw.kbbridge.exception.BizException;
 import com.openclaw.kbbridge.model.enums.DocumentStatus;
 import com.openclaw.kbbridge.model.enums.ReviewStatus;
 import com.openclaw.kbbridge.repository.KnowledgeDocumentMapper;
+import com.openclaw.kbbridge.unified.UnifiedKnowledgeService;
+import com.openclaw.kbbridge.unified.UnifiedObjectStore;
+import java.nio.charset.StandardCharsets;
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -35,6 +39,13 @@ public class DocumentService {
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final RagflowClient ragflowClient;
     private final KbProperties kbProperties;
+    private UnifiedKnowledgeService unifiedKnowledgeService;
+    private UnifiedObjectStore unifiedObjectStore;
+    private static final int MAX_PREVIEW_BYTES = 2 * 1024 * 1024;
+    @Autowired(required = false)
+    public void setUnifiedObjectStore(UnifiedObjectStore store) { this.unifiedObjectStore = store; }
+    @Autowired(required = false)
+    public void setUnifiedKnowledgeService(UnifiedKnowledgeService service) { this.unifiedKnowledgeService = service; }
 
     public DocumentService(KnowledgeDocumentMapper knowledgeDocumentMapper,
             RagflowClient ragflowClient,
@@ -56,6 +67,11 @@ public class DocumentService {
      */
     public void disable(Long documentId) {
         KnowledgeDocumentEntity doc = findDocumentOrThrow(documentId);
+        if (doc.getDocumentId() != null) {
+            if (unifiedKnowledgeService == null) throw new BizException("统一文档服务不可用");
+            unifiedKnowledgeService.legacyDocumentToggle(documentId, false);
+            return;
+        }
 
         doc.setStatus(DocumentStatus.DISABLED.name());
         doc.setUpdatedAt(LocalDateTime.now());
@@ -86,6 +102,11 @@ public class DocumentService {
      */
     public void enable(Long documentId) {
         KnowledgeDocumentEntity doc = findDocumentOrThrow(documentId);
+        if (doc.getDocumentId() != null) {
+            if (unifiedKnowledgeService == null) throw new BizException("统一文档服务不可用");
+            unifiedKnowledgeService.legacyDocumentToggle(documentId, true);
+            return;
+        }
 
         doc.setStatus(DocumentStatus.COMPLETED.name());
         doc.setUpdatedAt(LocalDateTime.now());
@@ -273,6 +294,22 @@ public class DocumentService {
                 doc.getMetadataJson(),
                 doc.getVersion(),
                 doc.getCreatedAt(),
-                doc.getUpdatedAt());
+                doc.getUpdatedAt(),
+                doc.getDocumentId(),
+                doc.getReleaseId(),
+                doc.getObjectKey(),
+                readUnifiedContent(doc),
+                doc.getSource());
+    }
+
+    private String readUnifiedContent(KnowledgeDocumentEntity doc) {
+        if (doc.getDocumentId() == null || unifiedObjectStore == null
+                || doc.getObjectKey() == null || doc.getObjectKey().isBlank()) return null;
+        try {
+            return new String(unifiedObjectStore.get(doc.getObjectKey(), MAX_PREVIEW_BYTES), StandardCharsets.UTF_8);
+        } catch (Exception ex) {
+            log.warn("统一文档内容预览不可用: documentId={}, objectKey={}", doc.getId(), doc.getObjectKey());
+            return null;
+        }
     }
 }

@@ -120,4 +120,17 @@ public class IngestTaskEntity {
      * 更新时间
      */
     private LocalDateTime updatedAt;
+
+    private String documentId;
+    private String releaseId;
+    private String operation;
+    private Long sourceRevNo;
+    private Long publishSeq;
+    private String payloadJson;
+    private String requestFingerprint;
+    private String leaseOwner;
+    private Long leaseToken;
+    private LocalDateTime leaseUntil;
+    private LocalDateTime nextRunAt;
+    private Integer attempts;
 }

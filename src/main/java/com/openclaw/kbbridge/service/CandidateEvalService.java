@@ -9,6 +9,8 @@ import com.openclaw.kbbridge.entity.IngestTaskEntity;
 import com.openclaw.kbbridge.model.enums.DocumentStatus;
 import com.openclaw.kbbridge.repository.IngestTaskMapper;
 import com.openclaw.kbbridge.util.HashUtil;
+import com.openclaw.kbbridge.unified.UnifiedKnowledgeService;
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -61,6 +63,9 @@ public class CandidateEvalService {
 
     private final IngestTaskMapper ingestTaskMapper;
     private final IngestService ingestService;
+    private UnifiedKnowledgeService unifiedKnowledgeService;
+    @Autowired(required = false)
+    public void setUnifiedKnowledgeService(UnifiedKnowledgeService service) { this.unifiedKnowledgeService = service; }
 
     public CandidateEvalService(IngestTaskMapper ingestTaskMapper,
                                 IngestService ingestService) {
@@ -107,11 +112,12 @@ public class CandidateEvalService {
 
         // 规则 4：内容去重检查
         String contentHash = HashUtil.sha256(content);
-        IngestTaskEntity duplicate = ingestTaskMapper.selectOne(
+        // The unified service owns deduplication for all new content.
+        IngestTaskEntity duplicate = unifiedKnowledgeService == null ? ingestTaskMapper.selectOne(
                 new LambdaQueryWrapper<IngestTaskEntity>()
                         .eq(IngestTaskEntity::getContentHash, contentHash)
                         .ne(IngestTaskEntity::getStatus, DocumentStatus.FAILED.name())
-                        .last("LIMIT 1"));
+                        .last("LIMIT 1")) : null;
         if (duplicate != null) {
             log.debug("自动候选判定: 内容重复, requestId={}, existingTaskId={}",
                     requestId, duplicate.getId());
@@ -130,7 +136,12 @@ public class CandidateEvalService {
                 request.attachments(),
                 false);
 
-        IngestResponse ingestResponse = ingestService.createTask(ingestRequest);
+        IngestResponse ingestResponse = unifiedKnowledgeService != null
+                ? unifiedKnowledgeService.legacyCandidate(ingestRequest)
+                : ingestService.createTask(ingestRequest);
+        if (ingestResponse.duplicate()) {
+            return new CandidateEvalResponse(requestId, false, "内容已存在", ingestResponse.taskId(), true);
+        }
 
         return new CandidateEvalResponse(
                 requestId,
