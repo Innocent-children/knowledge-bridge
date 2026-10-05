@@ -1,35 +1,15 @@
-# ============================================================
-# Knowledge Bridge — Multi-stage Docker Build
-# ============================================================
-
-# Stage 1: Build
-FROM maven:3.9-eclipse-temurin-25 AS builder
-
+FROM maven:3.9-eclipse-temurin-25 AS build
 WORKDIR /build
-COPY settings.xml /root/.m2/settings.xml
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
-
+RUN mvn -B -q dependency:go-offline
 COPY src ./src
-RUN mvn package -DskipTests -Dfile.encoding=UTF-8 -B
+RUN mvn -B -q -DskipTests package
 
-# Stage 2: Runtime
 FROM eclipse-temurin:25-jre
-
-LABEL maintainer="openclaw"
-LABEL description="Knowledge Bridge - Knowledge orchestration layer between OpenClaw and RAGFlow"
-
 WORKDIR /app
-
-COPY --from=builder /build/target/*.jar app.jar
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8111/actuator/health || exit 1
-
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* && groupadd --system app && useradd --system --gid app --home-dir /app app
+COPY --from=build --chown=app:app /build/target/knowledge-bridge-1.0-SNAPSHOT.jar /app/app.jar
+USER app
+ENV SERVER_PORT=8111 JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF-8 -Duser.timezone=UTC"
 EXPOSE 8111
-
-ENTRYPOINT ["java", \
-    "-Dfile.encoding=UTF-8", \
-    "-Djava.security.egd=file:/dev/./urandom", \
-    "--enable-native-access=ALL-UNNAMED", \
-    "-jar", "app.jar"]
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

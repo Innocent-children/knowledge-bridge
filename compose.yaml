@@ -1,0 +1,17 @@
+name: knowledge-bridge
+services:
+  app:
+    build: .
+    env_file:
+      - ${ENV_FILE:-.env}
+    ports:
+      - "${SERVER_PORT:-8111}:${SERVER_PORT}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:$$SERVER_PORT/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s

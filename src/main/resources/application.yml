@@ -1,119 +1,47 @@
 server:
+  address: 0.0.0.0
   port: ${SERVER_PORT:8111}
-  address: ${SERVER_ADDRESS:0.0.0.0}
-
+  error:
+    include-message: never
 spring:
   application:
-    name: ${SPRING_APPLICATION_NAME:knowledge-bridge}
-  output:
-    ansi:
-      enabled: ${SPRING_OUTPUT_ANSI_ENABLED:detect}
+    name: knowledge-bridge
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/kb_bridge?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:}
-    driver-class-name: ${DB_DRIVER_CLASS_NAME:com.mysql.cj.jdbc.Driver}
-  jackson:
-    date-format: ${SPRING_JACKSON_DATE_FORMAT:yyyy-MM-dd'T'HH:mm:ss'Z'}
-    time-zone: ${SPRING_JACKSON_TIME_ZONE:UTC}
-    default-property-inclusion: ${SPRING_JACKSON_DEFAULT_PROPERTY_INCLUSION:non_null}
-
-mybatis-plus:
-  configuration:
-    map-underscore-to-camel-case: ${MYBATIS_PLUS_MAP_UNDERSCORE_TO_CAMEL_CASE:true}
-    log-impl: ${MYBATIS_PLUS_LOG_IMPL:org.apache.ibatis.logging.slf4j.Slf4jImpl}
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:health,info,metrics}
-  endpoint:
-    health:
-      show-details: ${MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS:when-authorized}
-
+    url: jdbc:mysql://${DB_HOST:host.docker.internal}:${DB_PORT:3306}/${DB_NAME:kb_bridge}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      connection-init-sql: "SET time_zone = '+00:00'"
+  task:
+    scheduling:
+      pool:
+        size: 2
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 3MB
+bridge:
+  service-token: ${BRIDGE_SERVICE_TOKEN}
+  shared-secret: ${KB_SHARED_SECRET}
+  notes-url: ${NOTES_URL:http://host.docker.internal:8311}
+  notes-token: ${NOTES_SERVICE_TOKEN}
+  vector-url: ${VECTOR_URL:http://host.docker.internal:8700}
+  vector-token: ${VECTOR_SERVICE_TOKEN}
+  minio-endpoint: ${MINIO_ENDPOINT}
+  minio-access-key: ${MINIO_ACCESS_KEY}
+  minio-secret-key: ${MINIO_SECRET_KEY}
+  releases-bucket: ${RELEASES_BUCKET:knowledge-releases}
+  llm-base-url: ${LLM_BASE_URL}
+  llm-api-key: ${LLM_API_KEY}
+  llm-model: ${LLM_MODEL}
+  llm-timeout-seconds: ${LLM_TIMEOUT_SECONDS:180}
+  search-max-sources: ${SEARCH_MAX_SOURCES:5}
+  processing-concurrency: ${PROCESSING_CONCURRENCY:2}
+  ingest-requests-per-minute: ${INGEST_REQUESTS_PER_MINUTE:30}
+  query-requests-per-minute: ${QUERY_REQUESTS_PER_MINUTE:120}
+  source-max-chars: ${SOURCE_MAX_CHARS:3000}
+  context-max-chars: ${CONTEXT_MAX_CHARS:10000}
+  query-rewrite-enabled: ${QUERY_REWRITE_ENABLED:true}
 logging:
-  file:
-    path: ${LOG_PATH:./logs}
-    name-base: ${LOG_FILE_NAME:knowledge-bridge}
-  logback:
-    rollingpolicy:
-      max-file-size: ${LOG_FILE_MAX_SIZE:50MB}
-      max-history: ${LOG_FILE_MAX_HISTORY:30}
-      total-size-cap: ${LOG_FILE_TOTAL_SIZE_CAP:2GB}
-  pattern:
-    console: ${LOGGING_PATTERN_CONSOLE:%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%-5level) %clr([%thread]){faint} %clr(%-40.40logger{39}){cyan} %clr(-){faint} %msg%n%wEx}
-    file: ${LOGGING_PATTERN_FILE:%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n%wEx}
   level:
-    com.openclaw.kbbridge: ${LOGGING_LEVEL_KB_BRIDGE:INFO}
-    com.openclaw.kbbridge.client: ${LOGGING_LEVEL_KB_BRIDGE_CLIENT:DEBUG}
-    com.openclaw.kbbridge.security: ${LOGGING_LEVEL_KB_BRIDGE_SECURITY:WARN}
-
-kb:
-  # RAGFlow 连接配置
-  ragflow:
-    base-url: ${RAGFLOW_BASE_URL:http://localhost:9380}
-    api-key: ${RAGFLOW_API_KEY:}
-    dataset-id: ${RAGFLOW_DATASET_ID:}
-    timeout-ms: ${RAGFLOW_TIMEOUT_MS:5000}
-    retry-max-attempts: ${RAGFLOW_RETRY_MAX_ATTEMPTS:3}
-    retry-delay-ms: ${RAGFLOW_RETRY_DELAY_MS:1000}
-
-  # 查询路由配置
-  query:
-    route-strategy: ${KB_QUERY_ROUTE_STRATEGY:rule}
-    rules: []
-    default-route: ${KB_QUERY_DEFAULT_ROUTE:KB_PLUS_LLM}
-    score-threshold: ${KB_QUERY_SCORE_THRESHOLD:0.2}
-    max-sources: ${KB_QUERY_MAX_SOURCES:5}
-    max-content-length: ${KB_QUERY_MAX_CONTENT_LENGTH:2000}
-    max-total-length: ${KB_QUERY_MAX_TOTAL_LENGTH:8000}
-    memory-enabled: ${KB_QUERY_MEMORY_ENABLED:false}
-    dataset-ids: ${KB_QUERY_DATASET_IDS:}
-    metadata-filter-enabled: ${KB_QUERY_METADATA_FILTER_ENABLED:false}
-
-  # MinIO 连接配置
-  minio:
-    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
-    access-key: ${MINIO_ACCESS_KEY:}
-    secret-key: ${MINIO_SECRET_KEY:}
-    raw-bucket: ${MINIO_RAW_BUCKET:kb-raw}
-    processed-bucket: ${MINIO_PROCESSED_BUCKET:kb-processed}
-
-  # 知识化重写 LLM 配置
-  processor:
-    llm-provider: ${LLM_PROVIDER:openai}
-    llm-model: ${LLM_MODEL:gpt-4o}
-    llm-base-url: ${LLM_BASE_URL:}
-    llm-api-key: ${LLM_API_KEY:}
-    llm-timeout-ms: ${LLM_TIMEOUT_MS:30000}
-    stream-enabled: ${LLM_STREAM_ENABLED:true}
-    llm-stream-idle-timeout-ms: ${LLM_STREAM_IDLE_TIMEOUT_MS:120000}
-    guide-prompt-template: ${PROCESSOR_GUIDE_PROMPT_TEMPLATE:classpath:prompts/guide-template.md}
-    qa-prompt-template: ${PROCESSOR_QA_PROMPT_TEMPLATE:classpath:prompts/qa-template.md}
-    processor-version: ${PROCESSOR_VERSION:v1}
-    min-qa-count: ${PROCESSOR_MIN_QA_COUNT:3}
-
-  # 入库配置
-  ingest:
-    async-pool-size: ${INGEST_ASYNC_POOL_SIZE:4}
-    retry-max-attempts: ${INGEST_RETRY_MAX_ATTEMPTS:3}
-    retry-delay-ms: ${INGEST_RETRY_DELAY_MS:5000}
-    orphan-timeout-ms: ${INGEST_ORPHAN_TIMEOUT_MS:600000}
-    content-hash-algorithm: ${INGEST_CONTENT_HASH_ALGORITHM:SHA-256}
-
-  # 安全配置
-  security:
-    shared-secret: ${KB_SHARED_SECRET:}
-    timestamp-tolerance-ms: ${KB_SECURITY_TIMESTAMP_TOLERANCE_MS:300000}
-    signature-algorithm: ${KB_SECURITY_SIGNATURE_ALGORITHM:HmacSHA256}
-    rate-limit-per-minute: ${KB_SECURITY_RATE_LIMIT_PER_MINUTE:60}
-
-  unified:
-    bucket: ${KB_UNIFIED_BUCKET:kb-content}
-    blog-token: ${BLOG_BRIDGE_TOKEN:}
-    vector-url: ${KB_VECTOR_URL:}
-    vector-token: ${KB_BRIDGE_SERVICE_TOKEN:}
-    worker-enabled: ${KB_UNIFIED_WORKER_ENABLED:true}
-    lease-seconds: ${KB_UNIFIED_LEASE_SECONDS:180}
-    max-attempts: ${KB_UNIFIED_MAX_ATTEMPTS:8}
+    root: ${LOG_LEVEL:INFO}
