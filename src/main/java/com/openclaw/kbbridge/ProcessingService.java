@@ -60,7 +60,7 @@ public class ProcessingService {
                 var preview=one("SELECT * FROM processing_preview WHERE rewrite_id=? AND document_id=?",rewrite,doc);
                 if(preview==null || preview.get("output_json")==null || !"READY".equals(preview.get("state")) || number(preview,"source_rev_no")!=rev || !sha(source).equals(preview.get("source_sha256")))conflict("Rewrite does not match source revision");
                 var generated=read(text(preview,"output_json"));
-                content="# "+title+"\n\n## 导读\n\n"+generated.get("guideMd")+"\n\n## 问答\n\n"+generated.get("qaMd");
+                content="# "+title+"\n\n## 导读\n\n"+generated.get("guideMd")+"\n\n---CHUNK---\n\n## 问答\n\n"+generated.get("qaMd");
             }
             String key="documents/"+doc+"/releases/"+release+"/document.md";
             db.update("UPDATE processing_document SET publish_seq=?,desired_state='PUBLISH',cleanup_complete=FALSE,updated_at=UTC_TIMESTAMP(3) WHERE document_id=?",seq,doc);
