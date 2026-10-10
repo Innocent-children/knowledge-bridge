@@ -93,13 +93,21 @@ public class ProcessingService {
         result.put("status",state);result.put("cleanupComplete",Boolean.TRUE.equals(master.get("cleanup_complete")));result.put("publications",rows);return result;
     }
     public Map<String,Object> query(String question,int limit,boolean debug,String mode) {
+        return query(question,limit,debug,mode,null);
+    }
+    public Map<String,Object> query(String question,int limit,boolean debug,String mode,List<String> allowedReleaseIds) {
         if(question==null || question.isBlank() || question.length()>2000)throw new IllegalArgumentException("Invalid query");
+        if(allowedReleaseIds!=null && allowedReleaseIds.isEmpty())return Map.of("items",List.of(),"warnings",List.of());
         var warnings=new ArrayList<String>();var alternatives=new ArrayList<String>();long start=System.nanoTime();
         if(properties.queryRewriteEnabled() && mode.equals("enhanced")) {
             try{alternatives.addAll(llm.expand(question));}catch(RuntimeException error){warnings.add("QUERY_REWRITE_UNAVAILABLE");}
         }
         double rewriteMs=(System.nanoTime()-start)/1_000_000.0;
         var request=new LinkedHashMap<String,Object>();request.put("query",question);request.put("queries",alternatives);request.put("limit",Math.clamp(limit,1,50));request.put("debug",debug);request.put("mode",mode);
+        if(allowedReleaseIds!=null) {
+            var allowed=allowedReleaseIds.stream().map(value->UUID.fromString(value).toString()).distinct().toList();
+            request.put("allowedReleaseIds",allowed);
+        }
         var response=remote.vector("POST","query",request);var items=new ArrayList<Map<String,Object>>();
         @SuppressWarnings("unchecked") var hits=(List<Map<String,Object>>)response.getOrDefault("items",List.of());
         for(var hit:hits) {

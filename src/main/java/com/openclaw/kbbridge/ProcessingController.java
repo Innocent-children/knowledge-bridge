@@ -15,6 +15,6 @@ public class ProcessingController {
     @GetMapping("/internal/documents/{document}/status") public Map<String,Object> status(@PathVariable String document) {return service.status(document);}
     @GetMapping("/internal/documents/{document}/previews/{rewrite}") public Map<String,Object> preview(@PathVariable String document,@PathVariable String rewrite) {return previews.snapshot(document,rewrite);}
     @PostMapping("/internal/documents/{document}/previews/{rewrite}/cancel") public Map<String,Object> cancel(@PathVariable String document,@PathVariable String rewrite) {previews.cancel(document,rewrite);return Map.of("status","CANCELLED");}
-    @PostMapping("/internal/query") public Map<String,Object> query(@RequestBody Query body) {return service.query(body.query(),body.limit()==null?10:body.limit(),Boolean.TRUE.equals(body.debug()),body.mode()==null?"enhanced":body.mode());}
-    public record Query(String query,Integer limit,Boolean debug,String mode) {}
+    @PostMapping("/internal/query") public Map<String,Object> query(@RequestBody Query body) {return service.query(body.query(),body.limit()==null?10:body.limit(),Boolean.TRUE.equals(body.debug()),body.mode()==null?"enhanced":body.mode(),body.allowedReleaseIds());}
+    public record Query(String query,Integer limit,Boolean debug,String mode,java.util.List<String> allowedReleaseIds) {}
 }

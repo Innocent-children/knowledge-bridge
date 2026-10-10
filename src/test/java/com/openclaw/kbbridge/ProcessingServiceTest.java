@@ -11,6 +11,27 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class ProcessingServiceTest {
+    @Test void scopeIsForwardedWithoutChangingThePluginQueryContract() {
+        var db=mock(JdbcTemplate.class);var remote=mock(RemoteClient.class);
+        when(remote.vector(eq("POST"),eq("query"),anyMap())).thenReturn(Map.of("items",List.of()));
+        var service=new ProcessingService(db,mock(PlatformTransactionManager.class),mock(ProcessingObjects.class),remote,mock(LlmService.class),mock(PreviewService.class),mock(BridgeProperties.class));
+        String release="22222222-2222-4222-8222-222222222222";
+        service.query("范围查询",5,false,"vector",List.of(release));
+        var capture=ArgumentCaptor.forClass(Map.class);
+        verify(remote).vector(eq("POST"),eq("query"),capture.capture());
+        assertEquals(List.of(release),capture.getValue().get("allowedReleaseIds"));
+        reset(remote);
+        when(remote.vector(eq("POST"),eq("query"),anyMap())).thenReturn(Map.of("items",List.of()));
+        service.query("插件原请求",5,false,"vector");
+        verify(remote).vector(eq("POST"),eq("query"),capture.capture());
+        assertFalse(capture.getValue().containsKey("allowedReleaseIds"));
+    }
+    @Test void emptyScopeDoesNotCallModelsOrTheVectorService() {
+        var remote=mock(RemoteClient.class);var llm=mock(LlmService.class);
+        var service=new ProcessingService(mock(JdbcTemplate.class),mock(PlatformTransactionManager.class),mock(ProcessingObjects.class),remote,llm,mock(PreviewService.class),mock(BridgeProperties.class));
+        assertEquals(List.of(),service.query("没有可检索版本",5,false,"enhanced",List.of()).get("items"));
+        verifyNoInteractions(remote,llm);
+    }
     @Test void publicationKeepsEveryGuideAndQuestionChunkSeparate() {
         String guide="## 部署准备\n准备数据库。\n\n---CHUNK---\n\n## 启动服务\n```bash\n./deploy.sh\n```";
         String qa="## 如何部署？\n先准备数据库。\n\n---CHUNK---\n\n## 如何启动？\n执行部署脚本。";

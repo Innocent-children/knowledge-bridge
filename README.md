@@ -58,3 +58,9 @@ MySQL `kb_bridge` 只有处理文档状态、改写预览记录与发布作业�
 ## 验证
 
 使用 JDK 25，运行 `mvn test package`。真实流程由 notes-blog 与 notes-blog-web 的隔离验证覆盖：手动提交、Markdown 上传、候选自动入库、改写预览、版本启用、查询、撤回、回收站和永久清理。处理进度通过结构化状态接口及容器日志查看：`docker compose logs -f app`。
+
+## 网页范围检索
+
+内部查询 `POST /internal/query` 的原有参数保留，新增可选 `allowedReleaseIds`（发布 UUID 数组）。notes-blog 根据账户、文件夹/子目录、标签、来源、归档和当前有效发布计算允许集合，bridge 校验、去重后透传到 KBVector，不在这里重复计算文档可见性。传入空数组直接返回空结果，不调用模型或全站召回；未传入时保留原有插件查询行为。
+
+验证位于 notes-blog 的 `test/compose.workspace.yaml` 和 `scripts/verify-workspace.py`，使用独立 MySQL/MinIO/Milvus、真实模型凭据和合成文档，覆盖范围内召回、空范围、回收站与插件契约。部署无新增环境变量，需与 notes-blog、KBVector 对应代码一起更新。
